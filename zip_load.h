@@ -145,7 +145,7 @@ long _ZIP_Read(struct _ZIP_DATA *data, uint32_t *state, size_t *ilen,
     const int lookup_bits = 10;
 
     long status = ZIP_OHNO;
-    uint32_t num_bits, dist, counter, num_extra, zhdr0, zhdr1, mtype;
+    uint32_t num_bits, dist, counter, num_extra, mtype, zhdr0 = 0, zhdr1 = 0;
     ZIP_BITS bits;
     const uint8_t *pIn_buf_cur = data->next_in,
                   *const pIn_buf_end = data->next_in + *ilen;
@@ -476,8 +476,8 @@ long _ZIP_Read(struct _ZIP_DATA *data, uint32_t *state, size_t *ilen,
         uint32_t null;
 
         ZIP_GET_BITS(32, null, num_bits & 7);
-        for (; (pIn_buf_cur > data->next_in) && (num_bits >= 8);
-             num_bits -= 8, --pIn_buf_cur);
+        for (null = 8; (pIn_buf_cur > data->next_in) && (num_bits >= null);
+             num_bits -= null, --pIn_buf_cur);
         bits &= (ZIP_BITS)((((uint64_t)1) << num_bits) - (uint64_t)1);
 
         if (decomp_flags & ZIP_FPZH) {
@@ -547,7 +547,8 @@ common_exit:
     #undef ZIP_CR_RETURN
 }
 
-void ZIP_Load(char *file, long size, void (*save)(char*, char*, long)) {
+void ZIP_Load(char *file, long size, void *user,
+              void (*save)(char*, char*, long, void*)) {
 #pragma pack(push, 1)
     struct {
         uint32_t head; /* header                  */
@@ -563,16 +564,16 @@ void ZIP_Load(char *file, long size, void (*save)(char*, char*, long)) {
                  szxf; /* size of the extra field */
     } *zhdr = (void*)file;
 #pragma pack(pop)
-    char *retn, *rtmp, *halt = file + size;
+    uint8_t *retn, *rtmp, *halt = (uint8_t*)file + size;
     struct _ZIP_DATA *data = (void*)malloc(sizeof(*data));
-    long stat;
+    long stat = 0;
 
-    for (; zhdr < halt;
-         zhdr = (uint8_t*)(zhdr + 1) + zhdr->szfn + zhdr->szxf + zhdr->szcp) {
+    for (; (uint8_t*)zhdr < halt; zhdr = (void*)
+        ((uint8_t*)(zhdr + 1) + zhdr->szfn + zhdr->szxf + zhdr->szcp)) {
         file = (zhdr->szfn && (zhdr->head == 0x04034B50))?
                 memcpy(calloc(zhdr->szfn + 1, 1), zhdr + 1, zhdr->szfn) : 0;
         if (!zhdr->szcp && file)
-            save(file, 0, 0);
+            save(file, 0, 0, user);
         else if (zhdr->szcp && file) {
             rtmp = retn = (uint8_t*)(zhdr + 1) + zhdr->szfn + zhdr->szxf;
             if (zhdr->func == 0x08) {
@@ -614,7 +615,7 @@ void ZIP_Load(char *file, long size, void (*save)(char*, char*, long)) {
                 }
             }
             if (stat >= 0)
-                save(file, retn, zhdr->szun);
+                save(file, (char*)retn, zhdr->szun, user);
             if (zhdr->func == 0x08)
                 free(retn);
         }
