@@ -562,15 +562,15 @@ void ZIP_Load(char *file, long size, void *user,
                  szun; /* size, uncompressed      */
         uint16_t szfn, /* size of the file name   */
                  szxf; /* size of the extra field */
-    } *zhdr = (void*)file;
+    } *zhdr = (__typeof__(zhdr))file;
 #pragma pack(pop)
     uint8_t *retn, *rtmp, *halt = (uint8_t*)file + size;
-    struct _ZIP_DATA *data = (void*)malloc(sizeof(*data));
+    struct _ZIP_DATA *data = (__typeof__(data))malloc(sizeof(*data));
     long stat = 0;
 
-    for (; (uint8_t*)zhdr < halt; zhdr = (void*)
+    for (; (uint8_t*)zhdr < halt; zhdr = (__typeof__(zhdr))
         ((uint8_t*)(zhdr + 1) + zhdr->szfn + zhdr->szxf + zhdr->szcp)) {
-        file = (zhdr->szfn && (zhdr->head == 0x04034B50))?
+        file = (zhdr->szfn && (zhdr->head == 0x04034B50))? (char*)
                 memcpy(calloc(zhdr->szfn + 1, 1), zhdr + 1, zhdr->szfn) : 0;
         if (!zhdr->szcp && file)
             save(file, 0, 0, user);
@@ -583,7 +583,7 @@ void ZIP_Load(char *file, long size, void *user,
 
                 data->next_in = rtmp;
                 data->avail_in = orig_avail_in = zhdr->szcp;
-                data->next_out = retn = calloc(1, zhdr->szun);
+                data->next_out = retn = (uint8_t*)calloc(1, zhdr->szun);
                 data->avail_out = zhdr->szun;
                 while (!0) {
                     i_sz = data->avail_in;
